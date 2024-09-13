@@ -61,45 +61,27 @@ fn play_a_game_1(_: ()) -> IOResult<i32> {
     IOResult::<i32>::Read((), Box::new(play_a_game_2))
 }
 
-struct State2 {
-    name: String,
-}
-
 fn play_a_game_2(name: String) -> IOResult<i32> {
     IOResult::<i32>::Write(
         format!("Hi {}! What is your age?", name),
-        Box::new(move |_arg| {
-            let state = State2 { name };
-            play_a_game_3(state)
-        }),
+        Box::new(move |_arg| play_a_game_3(name)),
     )
 }
 
-fn play_a_game_3(state: State2) -> IOResult<i32> {
-    IOResult::<i32>::Read((), Box::new(move |arg: String| play_a_game_4(state, arg)))
+fn play_a_game_3(name: String) -> IOResult<i32> {
+    IOResult::<i32>::Read((), Box::new(move |line: String| play_a_game_4(name, line)))
 }
 
-struct State4 {
-    #[allow(dead_code)]
-    name: String,
-    age: i32,
-}
-
-fn play_a_game_4(state: State2, arg: String) -> IOResult<i32> {
-    let age = arg.parse::<i32>().unwrap();
+fn play_a_game_4(name: String, line: String) -> IOResult<i32> {
+    let age = line.parse::<i32>().unwrap();
     IOResult::<i32>::Write(
-        format!("Nice to meet you {}, {} is a nice age!", state.name, age),
-        Box::new(move |_arg: ()| {
-            play_a_game_5(State4 {
-                name: state.name,
-                age,
-            })
-        }),
+        format!("Nice to meet you {}, {} is a nice age!", name, age),
+        Box::new(move |_: ()| play_a_game_5(age)),
     )
 }
 
-fn play_a_game_5(state: State4) -> IOResult<i32> {
-    IOResult::<i32>::Done(state.age)
+fn play_a_game_5(age: i32) -> IOResult<i32> {
+    IOResult::<i32>::Done(age)
 }
 
 //////////////// play_games
