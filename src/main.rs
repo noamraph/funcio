@@ -6,6 +6,21 @@ enum IOResult<T> {
     Done(T),
 }
 
+fn call_async<T: 'static, S: 'static>(
+    fut: IOResult<T>,
+    after: Box<dyn FnOnce(T) -> IOResult<S>>,
+) -> IOResult<S> {
+    match fut {
+        IOResult::Read(_, f) => {
+            IOResult::<S>::Read((), Box::new(move |line| call_async(f(line), after)))
+        }
+        IOResult::Write(line, f) => {
+            IOResult::<S>::Write(line, Box::new(move |_| call_async(f(()), after)))
+        }
+        IOResult::Done(result) => after(result),
+    }
+}
+
 fn read() -> String {
     let mut line = String::new();
     io::stdin().read_line(&mut line).unwrap();
@@ -87,66 +102,32 @@ fn play_a_game_5(state: State4) -> IOResult<i32> {
     IOResult::<i32>::Done(state.age)
 }
 
+//////////////// play_games
+
 fn play_games() -> IOResult<()> {
     play_games_1(0)
 }
 
 fn play_games_1(sum_age: i32) -> IOResult<()> {
-    let fut = play_a_game_0();
-    match fut {
-        IOResult::Read(arg, f) => {
-            IOResult::<()>::Read(arg, Box::new(move |arg| play_games_2(sum_age, f, arg)))
-        }
-        IOResult::Write(arg, f) => {
-            IOResult::<()>::Write(arg, Box::new(move |arg| play_games_3(sum_age, f, arg)))
-        }
-        IOResult::Done(age) => play_games_4(sum_age, age),
-    }
-}
-
-fn play_games_2(
-    sum_age: i32,
-    f: Box<dyn FnOnce(String) -> IOResult<i32>>,
-    arg: String,
-) -> IOResult<()> {
-    let fut = f(arg);
-    match fut {
-        IOResult::Read(arg, f) => {
-            IOResult::<()>::Read(arg, Box::new(move |arg| play_games_2(sum_age, f, arg)))
-        }
-        IOResult::Write(arg, f) => {
-            IOResult::<()>::Write(arg, Box::new(move |arg| play_games_3(sum_age, f, arg)))
-        }
-        IOResult::Done(age) => play_games_4(sum_age, age),
-    }
-}
-
-fn play_games_3(sum_age: i32, f: Box<dyn FnOnce(()) -> IOResult<i32>>, arg: ()) -> IOResult<()> {
-    let fut = f(());
-    match fut {
-        IOResult::Read(arg, f) => {
-            IOResult::<()>::Read(arg, Box::new(move |arg| play_games_2(sum_age, f, arg)))
-        }
-        IOResult::Write(arg, f) => {
-            IOResult::<()>::Write(arg, Box::new(move |arg| play_games_3(sum_age, f, arg)))
-        }
-        IOResult::Done(age) => play_games_4(sum_age, age),
-    }
-}
-
-fn play_games_4(mut sum_age: i32, age: i32) -> IOResult<()> {
-    sum_age += age;
-    IOResult::Write(
-        "Do you want to play again? (y/n)".into(),
-        Box::new(move |_| play_games_5(sum_age)),
+    call_async(
+        play_a_game_0(),
+        Box::new(move |age| play_games_2(sum_age, age)),
     )
 }
 
-fn play_games_5(sum_age: i32) -> IOResult<()> {
-    IOResult::Read((), Box::new(move |line| play_games_6(sum_age, line)))
+fn play_games_2(mut sum_age: i32, age: i32) -> IOResult<()> {
+    sum_age += age;
+    IOResult::Write(
+        "Do you want to play again? (y/n)".into(),
+        Box::new(move |_| play_games_3(sum_age)),
+    )
 }
 
-fn play_games_6(sum_age: i32, line: String) -> IOResult<()> {
+fn play_games_3(sum_age: i32) -> IOResult<()> {
+    IOResult::Read((), Box::new(move |line| play_games_4(sum_age, line)))
+}
+
+fn play_games_4(sum_age: i32, line: String) -> IOResult<()> {
     if line.to_lowercase() == "y" {
         play_games_1(sum_age)
     } else {
